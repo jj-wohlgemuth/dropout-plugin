@@ -62,6 +62,28 @@ python3 tools/dump_reference.py      # -> src/model/test_vectors.rs (parity test
 cargo test                           # confirm the port still matches PyTorch
 ```
 
+## CI & releases
+
+GitHub Actions builds on **macOS** and **Windows**:
+
+- **CI** (`.github/workflows/ci.yml`) — on every push / PR to `main`: runs the
+  test suite and a smoke build of the CLAP + VST3 bundles.
+- **Release** (`.github/workflows/release.yml`) — on a `v*` tag: builds the
+  bundles (CLAP + VST3, plus AU on macOS), zips them per-platform, and opens a
+  **draft** GitHub Release with them attached. Cut one with:
+
+  ```bash
+  git tag v0.1.0 && git push origin v0.1.0
+  ```
+
+Bundles are **unsigned** (no signing identity in CI). On macOS, clear quarantine
+after unzipping: `xattr -dr com.apple.quarantine DropoutPlugin.vst3`. To ship
+signed/notarized installers, set the `TRUCE_SIGNING_IDENTITY` / `APPLE_ID` /
+`TEAM_ID` (and Windows Authenticode) secrets and switch to `cargo truce package`.
+
+> Actions minutes are free for public repos. This repo is private, where macOS
+> runners bill at 10× and Windows at 2× against the monthly free allotment.
+
 ## Layout
 
 ```

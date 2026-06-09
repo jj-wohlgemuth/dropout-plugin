@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-truce
+        run: cargo install cargo-truce --version "^0.57"
+
+      # Skip the GUI screenshot regression in CI: it pins a baseline rendered
+      # on the author's machine and cross-machine font/AA differences make it
+      # flaky. It still runs locally (`cargo test`).
+      - name: Test
+        run: cargo test -- --skip gui_screenshot
+
+      - name: Build bundles (smoke)
+        run: cargo truce build --clap --vst3

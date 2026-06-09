@@ -1,0 +1,80 @@
+name: Release
+
+# Tag a release to build + publish plugin bundles:
+#   git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: macos-arm64
+            formats: "--clap --vst3 --au2"
+          - os: windows-latest
+            name: windows-x64
+            formats: "--clap --vst3"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-truce
+        run: cargo install cargo-truce --version "^0.57"
+
+      - name: Build bundles
+        run: cargo truce build ${{ matrix.formats }}
+
+      # Bundles are unsigned (no signing identity on CI). End users may need
+      # to clear quarantine on macOS: `xattr -dr com.apple.quarantine <bundle>`.
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cd target/bundles
+          extra=""
+          [ -d DropoutPlugin.component ] && extra="DropoutPlugin.component"
+          zip -ry "../../DropoutPlugin-${{ github.ref_name }}-${{ matrix.name }}.zip" \
+            DropoutPlugin.clap DropoutPlugin.vst3 $extra
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path target/bundles/DropoutPlugin.clap, target/bundles/DropoutPlugin.vst3 `
+            -DestinationPath "DropoutPlugin-${{ github.ref_name }}-${{ matrix.name }}.zip"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DropoutPlugin-${{ matrix.name }}
+          path: DropoutPlugin-*.zip
+
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          draft: true            # review, then publish in the GitHub UI
+          generate_release_notes: true
