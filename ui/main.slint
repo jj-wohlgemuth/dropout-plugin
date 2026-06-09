@@ -1,0 +1,231 @@
+import { Toggle } from "@truce";
+import "JetBrainsMono-Regular.ttf";
+
+// A rotary knob whose arc scales with the `dim` property. Same 270° design as
+// the stock truce Knob, but the Paths use a 60-unit viewbox scaled to `dim`
+// pixels, so the whole dial grows instead of being pinned at 60px.
+component DialKnob inherits Rectangle {
+    in-out property <float> value: 0.5;
+    in property <string> label: "";
+    in property <string> value-text: "";
+    in property <float> minimum: 0.0;
+    in property <float> maximum: 1.0;
+    in property <length> dim: 110px;
+    callback changed(float);
+
+    property <color> track-color: #3a3a44;
+    property <color> fill-color: #4d99f2;
+    property <color> pointer-color: #f2f2f7;
+    property <color> hover-color: #737373;
+    property <color> label-color: #8c8c99;
+    property <color> value-color: #e6e6eb;
+
+    property <float> norm: (value - minimum) / (maximum - minimum);
+    property <float> val-angle: 135 + norm * 270;
+
+    pure function ax(a: float) -> float { 30 + 25 * cos(a * 1deg) }
+    pure function ay(a: float) -> float { 30 + 25 * sin(a * 1deg) }
+    pure function ptr-len() -> float { 25 * 0.6 }
+
+    width: dim;
+    height: dim + 30px;
+
+    // Hover highlight ring (just outside the track arc)
+    Path {
+        x: (parent.width - dim) / 2;
+        y: 0px;
+        width: dim;
+        height: dim;
+        viewbox-x: 0; viewbox-y: 0; viewbox-width: 60; viewbox-height: 60;
+        stroke: touch.has-hover ? root.hover-color : transparent;
+        stroke-width: 1.5px;
+        MoveTo { x: 30 + 28 * cos(135deg); y: 30 + 28 * sin(135deg); }
+        ArcTo {
+            x: 30 + 28 * cos(405deg); y: 30 + 28 * sin(405deg);
+            radius-x: 28; radius-y: 28; sweep: true; large-arc: true;
+        }
+    }
+
+    // Track arc (full 270°)
+    Path {
+        x: (parent.width - dim) / 2;
+        y: 0px;
+        width: dim;
+        height: dim;
+        viewbox-x: 0; viewbox-y: 0; viewbox-width: 60; viewbox-height: 60;
+        stroke: root.track-color;
+        stroke-width: 3px;
+        MoveTo { x: ax(135); y: ay(135); }
+        ArcTo { x: ax(405); y: ay(405); radius-x: 25; radius-y: 25; sweep: true; large-arc: true; }
+    }
+
+    // Value arc
+    Path {
+        x: (parent.width - dim) / 2;
+        y: 0px;
+        width: dim;
+        height: dim;
+        viewbox-x: 0; viewbox-y: 0; viewbox-width: 60; viewbox-height: 60;
+        stroke: root.fill-color;
+        stroke-width: 3px;
+        MoveTo { x: ax(135); y: ay(135); }
+        ArcTo {
+            x: ax(root.val-angle); y: ay(root.val-angle);
+            radius-x: 25; radius-y: 25; sweep: true; large-arc: root.norm > 0.667;
+        }
+    }
+
+    // Pointer line
+    Path {
+        x: (parent.width - dim) / 2;
+        y: 0px;
+        width: dim;
+        height: dim;
+        viewbox-x: 0; viewbox-y: 0; viewbox-width: 60; viewbox-height: 60;
+        stroke: root.pointer-color;
+        stroke-width: 2px;
+        MoveTo { x: 30; y: 30; }
+        LineTo {
+            x: 30 + ptr-len() * cos(root.val-angle * 1deg);
+            y: 30 + ptr-len() * sin(root.val-angle * 1deg);
+        }
+    }
+
+    // Value text
+    Text {
+        y: dim + 1px;
+        width: parent.width;
+        text: root.value-text != "" ? root.value-text : round(root.value * 100) / 100;
+        font-size: 13px;
+        color: root.value-color;
+        horizontal-alignment: center;
+    }
+
+    // Label
+    Text {
+        y: dim + 16px;
+        width: parent.width;
+        text: root.label;
+        font-size: 12px;
+        color: root.label-color;
+        horizontal-alignment: center;
+    }
+
+    touch := TouchArea {
+        width: parent.width;
+        height: dim;
+        property <float> start-value;
+        pointer-event(ev) => {
+            if ev.kind == PointerEventKind.down && ev.button == PointerEventButton.left {
+                start-value = root.value;
+            }
+        }
+        moved => {
+            if self.pressed {
+                root.value = clamp(
+                    start-value - (touch.mouse-y - touch.pressed-y) / 150px * (root.maximum - root.minimum),
+                    root.minimum, root.maximum,
+                );
+                root.changed(root.value);
+            }
+        }
+    }
+}
+
+export component DropoutUi inherits Window {
+    // Normalized (0..1) param values, kept in sync by the host each frame.
+    in-out property <float> loss: 0.2;
+    in-out property <float> packet: 0.25;
+    in-out property <bool> bypass: false;
+
+    // Formatted, unit-suffixed display strings from the host.
+    in-out property <string> loss-text: "";
+    in-out property <string> packet-text: "";
+
+    // Live drop indicator, driven by the audio thread via a meter slot.
+    in property <bool> dropped: false;
+
+    callback loss-changed(float);
+    callback packet-changed(float);
+    callback bypass-changed(bool);
+
+    title: "DROPOUT";
+    preferred-width: 320px;
+    preferred-height: 300px;
+    background: #1f1f24;
+    default-font-family: "JetBrains Mono";
+
+    VerticalLayout {
+        spacing: 0px;
+
+        // Header
+        Rectangle {
+            height: 34px;
+            vertical-stretch: 0;
+            background: #14141a;
+            HorizontalLayout {
+                padding-left: 14px;
+                padding-right: 14px;
+                alignment: space-between;
+                Text {
+                    vertical-alignment: center;
+                    text: "DROPOUT";
+                    font-size: 16px;
+                    font-weight: 700;
+                    color: #bfbfc8;
+                }
+                HorizontalLayout {
+                    spacing: 6px;
+                    alignment: end;
+                    Rectangle {
+                        width: 13px;
+                        height: 13px;
+                        y: (parent.height - self.height) / 2;
+                        border-radius: 7px;
+                        background: root.dropped ? #ff4d4d : #3a3a44;
+                    }
+                    Text {
+                        vertical-alignment: center;
+                        text: "LOSS";
+                        font-size: 11px;
+                        color: root.dropped ? #ff8080 : #6f6f78;
+                    }
+                }
+            }
+        }
+
+        // Body
+        VerticalLayout {
+            padding: 18px;
+            spacing: 14px;
+            vertical-stretch: 1;
+
+            HorizontalLayout {
+                spacing: 24px;
+                alignment: center;
+                vertical-stretch: 1;
+
+                DialKnob {
+                    label: "Loss";
+                    dim: 120px;
+                    value <=> root.loss;
+                    value-text: root.loss-text;
+                    changed(v) => { root.loss-changed(v); }
+                }
+                DialKnob {
+                    label: "Packet";
+                    dim: 120px;
+                    value <=> root.packet;
+                    value-text: root.packet-text;
+                    changed(v) => { root.packet-changed(v); }
+                }
+            }
+
+            Toggle {
+                label: "Bypass";
+                checked <=> root.bypass;
+                toggled(v) => { root.bypass-changed(v); }
+            }
+        }
+    }
+}

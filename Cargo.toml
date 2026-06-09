@@ -1,0 +1,51 @@
+[package]
+name = "dropout-plugin"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[[bin]]
+name = "dropout-plugin-standalone"
+path = "src/main.rs"
+required-features = ["standalone"]
+
+# Scaffolded default: CLAP + VST3 + standalone. To add LV2 / AU / AAX / VST2,
+# add the matching feature + optional dep below (e.g.
+# `lv2 = ["dep:truce-lv2"]` +
+# `truce-lv2 = { version = "0.57", optional = true }`).
+# Each format feature gates the matching wrapper crate as an optional
+# dep.
+[features]
+default = ["clap", "vst3", "standalone"]
+clap = ["dep:truce-clap", "dep:clap-sys"]
+vst3 = ["dep:truce-vst3"]
+standalone = ["dep:truce-standalone"]
+shell = ["truce/shell"]
+
+[dependencies]
+truce = { version = "0.57" }
+# Slint GUI backend (this plugin supplies its own editor, so the
+# built-in truce-gui renderer is dropped).
+truce-slint = { version = "0.57" }
+slint = { version = "=1.15.1", default-features = false, features = ["compat-1-2", "renderer-software", "std"] }
+truce-clap = { version = "0.57", optional = true }
+truce-vst3 = { version = "0.57", optional = true }
+truce-standalone = { version = "0.57", features = ["gui"], optional = true }
+clap-sys = { version = "0.5", optional = true }
+
+[build-dependencies]
+truce-slint-build = { version = "0.57" }
+
+[dev-dependencies]
+truce-test = { version = "0.57" }
+
+# Custom profile for `cargo truce install --shell`. The shell-mode
+# build (`cargo build --profile shell --features ...,shell`) lands the
+# shell binary at `target/shell/lib<crate>.dylib`, independent of
+# `target/release/` (where regular `cargo build --release` writes) and
+# `target/debug/` (where `cargo build` writes). Inherits release for
+# DSP perf parity.
+[profile.shell]
+inherits = "release"
