@@ -1147,6 +1147,7 @@ dependencies = [
  "clap-sys",
  "slint",
  "truce",
+ "truce-au",
  "truce-clap",
  "truce-slint",
  "truce-slint-build",
@@ -4955,6 +4956,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "truce-au"
+version = "0.57.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "416515eab610d50833f22e9ecbb61f775190c44ebe7d64da18feb07c22e5b52b"
+dependencies = [
+ "cc",
+ "crossbeam-queue",
+ "truce-core",
+ "truce-params",
+ "truce-shim-types",
+]
+
+[[package]]
 name = "truce-build"
 version = "0.57.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5100,6 +5114,12 @@ dependencies = [
  "truce-gui-types",
  "truce-params",
 ]
+
+[[package]]
+name = "truce-shim-types"
+version = "0.57.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f7d7c4299a843f874783112bcb44b9a9b69f68a9c2ab6bd3049a1714a2d60fa"
 
 [[package]]
 name = "truce-slint"
