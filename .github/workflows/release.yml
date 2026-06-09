@@ -16,6 +16,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - os: ubuntu-latest
+            name: linux-x64
+            formats: "--clap --vst3"
           - os: macos-latest
             name: macos-arm64
             formats: "--clap --vst3 --au2"
@@ -28,6 +31,17 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      # System libraries for baseview / wgpu / slint / cpal / rfd on Linux.
+      - name: Install Linux build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libasound2-dev \
+            libx11-dev libxcb1-dev libxcursor-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libgl1-mesa-dev libwayland-dev libgtk-3-dev
+
       - uses: Swatinem/rust-cache@v2
 
       - name: Install cargo-truce
@@ -36,10 +50,10 @@ jobs:
       - name: Build bundles
         run: cargo truce build ${{ matrix.formats }}
 
-      # Bundles are unsigned (no signing identity on CI). End users may need
-      # to clear quarantine on macOS: `xattr -dr com.apple.quarantine <bundle>`.
-      - name: Package (macOS)
-        if: runner.os == 'macOS'
+      # Bundles are unsigned (no signing identity on CI). On macOS, end users
+      # may need: `xattr -dr com.apple.quarantine <bundle>`.
+      - name: Package (macOS / Linux)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           cd target/bundles
