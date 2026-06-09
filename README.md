@@ -5,6 +5,10 @@ packet loss** â€” the same behaviour as the reference `LossGen` Python snippet â
 live in your DAW. Built with [truce.audio](https://truce.audio) (Rust plugin
 framework) and a [Slint](https://slint.dev) GUI.
 
+<p align="center">
+  <img src="screenshots/default.png" alt="Dropout plugin GUI" width="320">
+</p>
+
 ## How it works
 
 The incoming audio stream is split into fixed-size packets. At each packet
